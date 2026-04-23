@@ -1,7 +1,7 @@
 # Shinban Sync - 新番同步
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Network](https://img.shields.io/badge/Magic%20Network-Required-blue)](https://github.com/clash-verge-rev/clash-verge-rev)
+![Network](https://img.shields.io/badge/Magic%20Network-Required-blue)
 ![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg)
 ![LastCommit](https://img.shields.io/github/last-commit/wiseCirno/shinban-sync/master)
 
@@ -127,6 +127,28 @@ python3 -m src.shinban_sync.main -b -l
    ```bash
    docker-compose up -d
    ```
+   
+### 样例日志输出
+
+```txt
+shinban-sync  | 2026-04-24 00:05:46 | INFO | 正在启动 Telegram Bot...
+shinban-sync  | 2026-04-24 00:05:47 | INFO | Telegram Bot 已成功启用
+shinban-sync  | 2026-04-24 00:05:47 | INFO | 启动检索循环模式，间隔 86400 秒
+shinban-sync  | 2026-04-24 00:05:48 | INFO | 开始搜索"关于邻家的天使大人不知不觉把我惯成了废人这件事 第二期"第3, 4集
+shinban-sync  | 2026-04-24 00:05:53 | INFO | <绿茶字幕组>尚未发布"关于邻家的天使大人不知不觉把我惯成了废人这件事 第二期"第3, 4集
+shinban-sync  | 2026-04-24 00:05:54 | INFO | 开始搜索"上伊那牡丹，醉姿如百合"第2集
+shinban-sync  | 2026-04-24 00:05:56 | INFO | <拨雪寻春>尚未发布"上伊那牡丹，醉姿如百合"第2集
+shinban-sync  | 2026-04-24 00:05:56 | INFO | 开始搜索"想让“我爱你”的游戏快点结束"第1, 2集
+shinban-sync  | 2026-04-24 00:05:59 | INFO | 已匹配到"想让“我爱你”的游戏快点结束"第1集
+shinban-sync  | 2026-04-24 00:06:05 | INFO | <LoliHouse>尚未发布"想让“我爱你”的游戏快点结束"第2集
+shinban-sync  | 2026-04-24 00:06:05 | INFO | "主播女孩重度依赖"已跟上最新进度
+shinban-sync  | 2026-04-24 00:06:05 | INFO | 开始搜索"冰之城墙"第4集
+shinban-sync  | 2026-04-24 00:06:06 | INFO | <樱都字幕组>尚未发布"冰之城墙"第4集
+shinban-sync  | 2026-04-24 00:06:06 | INFO | 开始搜索"一叠间漫画咖啡屋生活！"第2集
+shinban-sync  | 2026-04-24 00:06:09 | INFO | <喵萌奶茶屋>尚未发布"一叠间漫画咖啡屋生活！"第2集
+shinban-sync  | 2026-04-24 00:10:11 | INFO | 文件已保存至 /.../愛してるゲームを終わらせたい (2026)/Season 1/愛してるゲームを終わらせたい S01E01.mkv
+shinban-sync  | 2026-04-24 00:10:11 | INFO | 下一次检索将在 86400 秒后进行
+```
 
 ## Screenshot
 
@@ -150,6 +172,8 @@ python3 -m src.shinban_sync.main -b -l
 <table>
   <tr>
     <td><img alt="" src="image/rename.png"></td>
+  </tr>
+  <tr>
     <td><img alt="" src="image/emby.png"></td>
   </tr>
 </table>
