@@ -39,7 +39,7 @@ async def organize(info: BangumiInfo, config: BangumiConfig, task: Aria2Download
     display_ep = info.episode[0] if isinstance(info.episode, list) else info.episode
     task_name = f"[{info.pub_date.strftime('%Y-%m-%d')}] {info.titles[0]} - {display_ep}"
 
-    gid = await task.add_torrent(info.torrent, task_name)
+    gid = await task.add_torrent(info.torrent, task_name, True)
     file_name = await task.wait_for_completion(gid)
 
     if file_name:
