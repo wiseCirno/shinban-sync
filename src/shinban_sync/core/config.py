@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import List
 
@@ -24,12 +25,26 @@ class ConfigManager:
 
     @staticmethod
     def _resolve_config_path(path: str = None) -> Path:
-        if path and Path(path).exists():
-            return Path(path)
+        try:
+            # 环境变量指定的路径
+            env_path = os.getenv("BANGUMI_CONFIG_PATH")
+            if env_path and Path(env_path).exists():
+                return Path(env_path)
 
-        project_root_path = Path(__file__).resolve().parent.parent.parent.parent / "config.yml"
-        if project_root_path.exists():
-            return project_root_path
+            # 显式指定的路径
+            if path and Path(path).exists():
+                return Path(path)
+
+            # 默认项目根目录
+            project_root_path = Path(__file__).resolve().parent.parent.parent.parent / "config.yml"
+            if project_root_path.exists():
+                return project_root_path
+        except PermissionError as e:
+            logger.error(f"权限不足，无法访问文件路径，请检查宿主机权限或 Docker 挂载设置: {e}")
+            exit(1)
+        except Exception as e:
+            logger.error(f"解析配置路径时发生未知错误: {e}")
+            exit(1)
 
         logger.error("无法找到配置文件，请在项目根目录创建 config.yml 或通过启动参数 -c, --config 显式指定路径")
         exit(1)
