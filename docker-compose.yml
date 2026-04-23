@@ -7,10 +7,19 @@ services:
     container_name: shinban-sync
     restart: unless-stopped
     volumes:
-      # 将当前目录的 config.yml 挂载到容器内
       - ./config.yml:/app/config.yml
-      # 将本地 Aria2 下载目录映射进容器内 (根据 config.yml 中 storage: local: aria2_path 的配置进行对应修改)
-      # 例如：下载到了宿主机的 /volume1/downloads/aria2，但在配置里写的 target_path 或 aria2_path 也是这个
-      # - /volume1/downloads/aria2:/volume1/downloads/aria2
+      # ==========================================================
+      # 【如果使用 local 本地存储】
+      # 请确保将您的宿主机下载路径映射进容器，并与 config.yml 中的 aria2_path/target_path 保持一致
+      # - /your/local/aria2/path:/aria2/path
+      # - /your/local/target/path:/target/path
+      # ==========================================================
+      # 【如果使用 sftp 远程存储】
+      # 不需要映射下载/目标路径，程序会通过网络远程操作文件。
+      # 但如果你在 config.yml 中配置了 pub_key (密钥登录)，则需要将密钥映射进容器：
+      # - /path/to/your/ssh_key:/app/ssh_key:ro # 然后在 config.yml 中将 pub_key 写为 /app/ssh_key
+      # ==========================================================
+      # 【如果使用 openlist 网盘存储】
+      # 完全不需要额外的路径映射，程序会通过网盘 API 直接操作文件。
     environment:
       - TZ=Asia/Shanghai

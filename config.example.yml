@@ -1,0 +1,51 @@
+# 1. 令牌配置 (如果不需要使用 Telegram 机器人则无需填写)
+telegram_bot_token: your_bot_token  # 查询 @BotFather 来获取你的机器人令牌
+telegram_user_id: your_user_id      # 可以使用 @userinfobot 获取你的用户ID。此参数确保机器人只能和你对话，防止滥用
+tmdb_token: your_tmdb_token         # 在 https://www.themoviedb.org/settings/api 获取 API 读访问令牌
+# 2. 下载器配置
+downloader:
+  provider: aria2
+  aria2:
+    base_url: http://127.0.0.1:6800/jsonrpc
+    token: your_secret_token
+# 3. 存储配置，用于处理下载的番剧
+storage:
+  # 启用的存储提供者: "local", "sftp", "openlist" 三选一
+  # "local" 适用于在服务器上部署或纯本地使用；另外两个适用于在不同终端上运行，通过远程访问服务器管理资源
+  provider: local
+  # 命名模板，标签内可以直接写 Python 语法（如果保持默认值则无需显式指定），支持传入的标签如下：
+  # <filename>, <subtitle>, <first_air_date>, <season_year_date>, <season>, <episode>, <language>, <ext>
+  folder_name_pattern: <filename> (<first_air_date.year>)/Season <season>
+  video_name_pattern: <filename> S<season:02d>E<episode:02d>.<ext>
+  # 如果 provider: local 只保留这部分就可以
+  local:
+    aria2_path: /aria2/path
+    target_path: /target/path
+  # 如果 provider: sftp 只保留这部分就可以
+  sftp:
+    host: 192.168.1.100
+    port: 22
+    user: root
+    password: your_password
+    pub_key: ''  # 填写密钥的文件路径
+    aria2_path: /aria2/path
+    target_path: /target/path
+  # 如果 provider: openlist 只保留这部分就可以
+  openlist:
+    base_url: https://example.openlist.com
+    user: user
+    password: password
+    aria2_path: /aria2/path
+    target_path: /target/path
+# 4. 追番订阅列表
+anime:
+  # 如果你配置了机器人与 TMDB 的密钥，这里可以留空来让机器人自动配置
+  # 样例如下：
+  - search_keyword: 上伊那牡丹，醉姿如百合     # (必要) 这个字段用于在 ACG.RIP. 上筛选字幕组的发布内容，确保字幕组发布标题包含关键词
+    filename: 上伊那ぼたん、酔へる姿は百合の花   # (必要) 这个字段用于创建本地文件夹以及视频的重命名
+    subtitle: 拨雪寻春                      # (必要) 好歹用一个字幕组吧，一部番用几个字幕组东拼西凑观感会很割裂
+    season_air_date: '2026-04-11'          # (必要) 本季上映时间，用于文件命名和集数判断
+    first_air_date: '2026-04-11'           # (*可选) 初次上映的时间，用于默认规则下文件夹命名。如果季号为 1 可以不填，否则需要填
+    season: 1                              # (可选) 选定的季号，默认 1
+    episode_count: 12                      # (可选) 不包括半集的总集数，默认 12
+    language: chs                          # (可选) 简中 chs, 繁中 cht，默认 'chs'
