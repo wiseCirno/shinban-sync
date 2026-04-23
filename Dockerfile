@@ -7,10 +7,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-ENV TZ=Asia/Shanghai
-# 如果要用 TG 机器人就改成 true
-ENV ENABLE_TELEGRAM_BOT=false
-
 # 复制依赖配置并安装
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

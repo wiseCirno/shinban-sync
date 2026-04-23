@@ -1,5 +1,8 @@
+import os
+import time
 from pathlib import Path
 from typing import List
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
@@ -22,6 +25,8 @@ class ConfigManager:
             logger.error(f"读取配置文件失败: {e}")
             exit(1)
 
+        self.apply_timezone()
+
     @staticmethod
     def _resolve_config_path(path: str = None) -> Path:
         if path and Path(path).exists():
@@ -41,20 +46,62 @@ class ConfigManager:
         except Exception as e:
             logger.error(f"保存配置文件失败: {e}")
 
+    def get_timezone(self) -> str:
+        timezone = self.raw_config.get('timezone', 'Asia/Shanghai')
+        if not isinstance(timezone, str) or not timezone.strip():
+            logger.error("配置项 timezone 必须是非空字符串，例如 'Asia/Shanghai'")
+            exit(1)
+
+        return timezone.strip()
+
+    def apply_timezone(self):
+        timezone = self.get_timezone()
+        try:
+            ZoneInfo(timezone)
+        except ZoneInfoNotFoundError:
+            logger.error(f"无效的 timezone: {timezone}，请使用 IANA 时区名称，例如 Asia/Shanghai")
+            exit(1)
+
+        os.environ['TZ'] = timezone
+        if hasattr(time, 'tzset'):
+            time.tzset()
+
     def get_telegram_bot_token(self) -> str:
-        token = self.raw_config.get('telegram_bot_token')
+        telegram_config = self.raw_config.get('telegram', {})
+        token = telegram_config.get('bot_token') if isinstance(telegram_config, dict) else None
         if not token:
-            logger.error("请在配置文件中设定 telegram_bot_token")
+            logger.error("请在配置文件中设定 telegram.bot_token")
             exit(1)
 
         return token
 
     def get_telegram_user_id(self) -> int:
-        user_id = self.raw_config.get('telegram_user_id')
+        telegram_config = self.raw_config.get('telegram', {})
+        user_id = telegram_config.get('user_id') if isinstance(telegram_config, dict) else None
         if not user_id:
-            logger.error("请在配置文件中设定 telegram_user_id")
+            logger.error("请在配置文件中设定 telegram.user_id")
+            exit(1)
 
         return user_id
+
+    def is_telegram_bot_enabled(self) -> bool:
+        telegram_config = self.raw_config.get('telegram', {})
+        if telegram_config and not isinstance(telegram_config, dict):
+            logger.error("配置文件中 'telegram' 节点格式不正确，应该是一个对象")
+            exit(1)
+
+        enabled = telegram_config.get('enabled', False) if isinstance(telegram_config, dict) else False
+        if not isinstance(enabled, bool):
+            logger.error("配置项 telegram.enabled 必须为 true 或 false")
+            exit(1)
+
+        if not enabled:
+            return False
+
+        # 当显式启用 TG Bot 时，token 和 user_id 必须存在
+        self.get_telegram_bot_token()
+        self.get_telegram_user_id()
+        return True
 
     def get_tmdb_token(self) -> str | None:
         token = self.raw_config.get('tmdb_token')

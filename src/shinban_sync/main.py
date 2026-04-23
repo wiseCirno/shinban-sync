@@ -145,9 +145,6 @@ def parse_args():
     parser.add_argument('-c', '--config', type = str, metavar = '',
                         help = '配置文件路径，未指定时在默认路径中寻找 config.yml')
 
-    parser.add_argument('-b', '--bot', action = 'store_true',
-                        help = '启用 Telegram Bot')
-
     args = parser.parse_args()
 
     if args.interval is not None and not args.loop:
@@ -165,10 +162,12 @@ async def scraping_loop(config_path: str, interval: int):
 
 async def async_main():
     args = parse_args()
+    config = ConfigManager(args.config)
+    bot_enabled = config.is_telegram_bot_enabled()
 
-    if args.bot:
-        logger.info("正在启动 Telegram Bot...")
-        bot = Bot(ConfigManager(args.config))
+    if bot_enabled:
+        logger.info("检测到 telegram.enabled=true，正在启动 Telegram Bot...")
+        bot = Bot(config)
 
         await bot.app.initialize()
         await bot.app.start()
@@ -190,12 +189,13 @@ async def async_main():
             await bot.app.updater.stop()
             await bot.app.stop()
             await bot.app.shutdown()
+        return
 
-    elif args.loop:
+    logger.info("telegram.enabled 未开启，跳过 Telegram Bot 启动")
+    if args.loop:
         interval = args.interval if args.interval is not None else 86400
         logger.info(f"启动检索循环模式，间隔 {interval} 秒")
         await scraping_loop(args.config, interval)
-
     else:
         await run_once(args.config)
 

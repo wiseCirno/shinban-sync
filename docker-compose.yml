@@ -21,7 +21,4 @@ services:
       # ==========================================================
       # 【如果使用 openlist 网盘存储】
       # 完全不需要额外的路径映射，程序会通过网盘 API 直接操作文件。
-    environment:
-      - TZ=Asia/Shanghai
-      # 如果要用 TG 机器人就改成 true
-      - ENABLE_TELEGRAM_BOT=false
+    # Telegram Bot 和时区都由 /app/config.yml 控制

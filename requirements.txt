@@ -5,3 +5,4 @@ paramiko==4.0.0
 pydantic==2.13.3
 python-telegram-bot==22.7
 pyyaml==6.0.3
+tzdata

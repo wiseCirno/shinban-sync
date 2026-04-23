@@ -43,9 +43,13 @@
 你可以复制以下模板并根据自己的需求进行修改：
 
 ```yaml
-# 1. 令牌配置 (如果不需要使用 Telegram 机器人则无需填写)
-telegram_bot_token: your_bot_token  # 查询 @BotFather 来获取你的机器人令牌
-telegram_user_id: your_user_id      # 可以使用 @userinfobot 获取你的用户ID。此参数确保机器人只能和你对话，防止滥用
+# 0. 全局配置
+timezone: Asia/Shanghai            # IANA 时区名称，默认 Asia/Shanghai
+# 1. Telegram 配置 (默认不启用机器人)
+telegram:
+  enabled: false # 默认 false。设为 true 时必须填写下面两个字段
+  bot_token: your_bot_token  # 查询 @BotFather 来获取你的机器人令牌
+  user_id: your_user_id      # 可以使用 @userinfobot 获取你的用户ID。此参数确保机器人只能和你对话，防止滥用
 tmdb_token: your_tmdb_token         # 在 https://www.themoviedb.org/settings/api 获取 API 读访问令牌
 # 2. 下载器配置
 downloader:
@@ -109,8 +113,9 @@ pip install -r requirements.txt
 使用 Python 运行主程序 `main.py`。你可以自由调整组合参数来决定脚本的工作模式。
 
 ```bash
-# 最常用的启动命令：同时启动 Telegram 机器人，并在后台开启 24小时/次 的循环检索
-python3 -m src.shinban_sync.main -b -l
+# 最常用的启动命令：后台开启 24小时/次 的循环检索
+# 如果 config.yml 里 telegram.enabled=true，会自动启动 Telegram 机器人
+python3 -m src.shinban_sync.main -l
 ```
 
 ### 使用 Docker (推荐)
@@ -118,6 +123,7 @@ python3 -m src.shinban_sync.main -b -l
 项目已发布官方 Docker 镜像，非常适合部署在服务端。您完全不需要拉取源码，只需以下几步即可运行：
 
 1. **准备配置文件**：在您的服务器上新建一个空目录（例如 `shinban`），并在其中创建您的 `config.yml`（参考上方模板）。
+   > 是否启用 Telegram Bot 由 `config.yml` 中的 `telegram.enabled` 决定，时区由 `config.yml` 中的 `timezone` 决定，不再使用环境变量开关。
 2. **创建 docker-compose.yml**：在同一目录下创建 `docker-compose.yml`，内容如下：
 
    ```yaml
@@ -132,8 +138,6 @@ python3 -m src.shinban_sync.main -b -l
          - ./config.yml:/app/config.yml
          # 请确保将您的宿主机下载路径映射进容器，例如：
          # - /volume1/downloads/aria2:/volume1/downloads/aria2
-       environment:
-         - TZ=Asia/Shanghai
    ```
 
 3. **启动容器**：
@@ -146,7 +150,6 @@ python3 -m src.shinban_sync.main -b -l
 
 | 参数缩写 | 参数全称         | 作用说明                                                                   |
 |:-----|:-------------|:-----------------------------------------------------------------------|
-| `-b` | `--bot`      | **启动 Telegram 机器人**。开启后可以通过 TG 搜番和添加配置。                                |
 | `-l` | `--loop`     | **开启常驻循环模式**。程序将挂在后台定期检查新番更新，如果不加此参数，程序只会执行一次检索然后退出。                   |
 | `-i` | `--interval` | **设置循环间隔(秒)**。必须配合 `-l` 使用。默认 `86400` (即 24 小时)。例如 `-i 3600` 代表每小时查一次。 |
 | `-c` | `--config`   | **显式指定配置路径**。例如 `-c /etc/shinban/config.yml`。未指定时在当前/根目录寻找。            |
