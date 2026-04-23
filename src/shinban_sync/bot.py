@@ -100,6 +100,7 @@ class Bot:
     async def subscribe_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message.from_user.id == int(self.config.get_telegram_user_id()):
             await update.message.reply_text("You are not allowed to use this command.")
+            return
 
         if not context.args:
             await update.message.reply_text("缺少搜索关键字，用例：`/subscribe [番剧名称]`")
