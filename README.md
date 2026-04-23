@@ -28,7 +28,7 @@
 
 ### To-Do
 
-- [ ] **支持 Docker**: 这样在服务器上运行会比较方便。
+- [x] **支持 Docker**: 提供了 Dockerfile 及 Docker Compose 配置，方便服务器部署。
 - [ ] **更多下载器接入**：目前支持 `Aria2`，后续将逐步接入如 `qBittorrent` 支持。
 - [ ] **更多 Bot 命令**: 目前支持添加订阅，后续将逐步加入新番通知，删除订阅的支持。
 - [ ] **更多资源站接入**：目前支持 `ACG.RIP`，后续计划接入 `蜜柑计划 (Mikan Project)` 等更多优质 RSS 源。
@@ -112,6 +112,35 @@ pip install -r requirements.txt
 # 最常用的启动命令：同时启动 Telegram 机器人，并在后台开启 24小时/次 的循环检索
 python3 -m src.shinban_sync.main -b -l
 ```
+
+### 使用 Docker (推荐)
+
+项目已发布官方 Docker 镜像，非常适合部署在服务端。您完全不需要拉取源码，只需以下几步即可运行：
+
+1. **准备配置文件**：在您的服务器上新建一个空目录（例如 `shinban`），并在其中创建您的 `config.yml`（参考上方模板）。
+2. **创建 docker-compose.yml**：在同一目录下创建 `docker-compose.yml`，内容如下：
+
+   ```yaml
+   version: '3.8'
+
+   services:
+     shinban-sync:
+       image: ghcr.io/leespo/shinnbann-sync:latest
+       container_name: shinban-sync
+       restart: unless-stopped
+       volumes:
+         - ./config.yml:/app/config.yml
+         # 请确保将您的宿主机下载路径映射进容器，例如：
+         # - /volume1/downloads/aria2:/volume1/downloads/aria2
+       environment:
+         - TZ=Asia/Shanghai
+   ```
+
+3. **启动容器**：
+
+   ```bash
+   docker-compose up -d
+   ```
 
 ### 所有支持的启动参数：
 

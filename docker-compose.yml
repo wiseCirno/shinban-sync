@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  shinban-sync:
+    image: ghcr.io/leespo/shinnbann-sync:latest
+    # build: . # 如果你想在本地自行构建，可以取消注释这行，并注释掉上面的 image
+    container_name: shinban-sync
+    restart: unless-stopped
+    volumes:
+      # 将当前目录的 config.yml 挂载到容器内
+      - ./config.yml:/app/config.yml
+      # 将本地 Aria2 下载目录映射进容器内 (根据 config.yml 中 storage: local: aria2_path 的配置进行对应修改)
+      # 例如：下载到了宿主机的 /volume1/downloads/aria2，但在配置里写的 target_path 或 aria2_path 也是这个
+      # - /volume1/downloads/aria2:/volume1/downloads/aria2
+    environment:
+      - TZ=Asia/Shanghai
