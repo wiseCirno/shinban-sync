@@ -2,17 +2,17 @@ version: '3.8'
 
 services:
   shinban-sync:
-    image: ghcr.io/leespo/shinnbann-sync:latest
+    image: ghcr.io/wisecirno/shinban-sync:latest
     # build: . # 如果你想在本地自行构建，可以取消注释这行，并注释掉上面的 image
     container_name: shinban-sync
     restart: unless-stopped
     volumes:
-      - ./config.yml:/app/config.yml
+      - /your/local/path/to/[配置文件名].yml:/app/config.yml
       # ==========================================================
       # 【如果使用 local 本地存储】
       # 请确保将您的宿主机下载路径映射进容器，并与 config.yml 中的 aria2_path/target_path 保持一致
-      # - /your/local/aria2/path:/aria2/path
-      # - /your/local/target/path:/target/path
+      # - /your/local/aria2/path:/app/aria2
+      # - /your/local/target/path:/app/target
       # ==========================================================
       # 【如果使用 sftp 远程存储】
       # 不需要映射下载/目标路径，程序会通过网络远程操作文件。
@@ -23,3 +23,5 @@ services:
       # 完全不需要额外的路径映射，程序会通过网盘 API 直接操作文件。
     environment:
       - TZ=Asia/Shanghai
+      # 如果要用 TG 机器人就改成 true
+      - ENABLE_TELEGRAM_BOT=false
