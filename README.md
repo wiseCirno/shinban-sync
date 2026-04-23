@@ -1,43 +1,36 @@
 # Shinban Sync - 新番同步
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg)](https://www.python.org/)
+[![Network](https://img.shields.io/badge/Magic%20Network-Required-blue)](https://github.com/clash-verge-rev/clash-verge-rev)
+![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg)
+![LastCommit](https://img.shields.io/github/last-commit/wiseCirno/shinban-sync/master)
 
 > 项目早期开发中，有任何功能和代码的问题欢迎提交 ISSUE
 
-**Shinban-Sync** 是可以进行无感知追番与媒体库整理的工具。
+**Shinban Sync** 是可以进行无感知追番与媒体库整理的工具。
 
 它可以帮你全自动检索、下载、重命名并归档你订阅的新番，还提供了一个 Telegram 机器人，让你通过手机就能完成从 **搜索番剧 ->
 查看详情 -> 选择字幕组 -> 添加到订阅库** 的一条龙操作。
 
 适合配合 **Emby / Jellyfin / Plex** 等媒体服务器使用，为你打造最纯净的本地/云端动漫媒体库。
 
----
-
 ## Features
 
-### Completed
-
-- **🤖 交互式订阅**：集成 TMDB 刮削，直接在 TG 发送番剧名称，无缝查看海报、简介，并一键选择白名单字幕组添加到订阅配置。
-- **⏱️ 智能追赶 (Catch-up)**：根据番剧首播时间和当前日期自动计算“应有进度”。哪怕你半途才想起追番，它也会一次性把落下的所有集数补齐，无需每天苦等。
-- **🗂️ 重命名与归档**：支持自定义的 `<var>` 变量命名模板。
-- **☁️ 多存储提供者支持 (Storage Providers)**：
+- [x] **🤖 交互式订阅**：通过关键词搜索，可以查看系列海报、简介、季度信息，然后选择喜欢的字幕组添加到订阅配置。
+- [x] **⏱️ 自动追赶进度**：根据番剧首播时间和当前日期自动计算“应有进度”。哪怕你半途才想起追番，也可以一次性把落下的所有集数补齐。
+- [x] **🗂️ 重命名与归档**：支持自定义的 `<var>` 变量命名模板。
+- [x] **☁️ 多存储提供者支持 (Storage Providers)**：
     - `Local`：支持本地全自动整理。
     - `SFTP`：支持远程 NAS、VPS 媒体库归档。
     - `OpenList`：支持通过 OpenList API 直接管理挂载的网盘。
-
-### To-Do
-
-- [x] **支持 Docker**: 提供了 Dockerfile 及 Docker Compose 配置，方便服务器部署。
+- [x] **📦 Docker 容器支持**: 提供了 `Dockerfile` 及 `Docker Compose` 配置，方便服务器部署。
 - [ ] **更多下载器接入**：目前支持 `Aria2`，后续将逐步接入如 `qBittorrent` 支持。
 - [ ] **更多 Bot 命令**: 目前支持添加订阅，后续将逐步加入新番通知，删除订阅的支持。
 - [ ] **更多资源站接入**：目前支持 `ACG.RIP`，后续计划接入 `蜜柑计划 (Mikan Project)` 等更多优质 RSS 源。
 - [ ] **文件覆盖选项**：针对“重发修正版 (v2)”资源的自动替换机制。
 - [ ] **合集资源整理**: 对非单集的季度合集进行整理 (新番下载貌似用不到这个，但是秉承着你可以不要，我不能没有，得加😂)
 
----
-
-## Example config.yml Config
+## Example `config.yml` Config
 
 在项目的根目录（或任意你喜欢的位置）创建一个 `config.yml` 文件。
 你可以复制以下模板并根据自己的需求进行修改：
@@ -96,9 +89,9 @@ anime:
     language: chs                          # (可选) 简中 chs, 繁中 cht，默认 'chs'
 ```
 
----
-
 ## Running
+
+### 手动配置
 
 首次使用时可以在创建好虚拟环境后运行如下代码安装依赖。
 
@@ -113,36 +106,7 @@ pip install -r requirements.txt
 python3 -m src.shinban_sync.main -b -l
 ```
 
-### 使用 Docker (推荐)
-
-项目已发布官方 Docker 镜像，非常适合部署在服务端。您完全不需要拉取源码，只需以下几步即可运行：
-
-1. **准备配置文件**：在您的服务器上新建一个空目录（例如 `shinban`），并在其中创建您的 `config.yml`（参考上方模板）。
-2. **创建 docker-compose.yml**：在同一目录下创建 `docker-compose.yml`，内容如下：
-
-   ```yaml
-   version: '3.8'
-
-   services:
-     shinban-sync:
-       image: ghcr.io/leespo/shinnbann-sync:latest
-       container_name: shinban-sync
-       restart: unless-stopped
-       volumes:
-         - ./config.yml:/app/config.yml
-         # 请确保将您的宿主机下载路径映射进容器，例如：
-         # - /volume1/downloads/aria2:/volume1/downloads/aria2
-       environment:
-         - TZ=Asia/Shanghai
-   ```
-
-3. **启动容器**：
-
-   ```bash
-   docker-compose up -d
-   ```
-
-### 所有支持的启动参数：
+#### 所有支持的启动参数：
 
 | 参数缩写 | 参数全称         | 作用说明                                                                   |
 |:-----|:-------------|:-----------------------------------------------------------------------|
@@ -151,7 +115,18 @@ python3 -m src.shinban_sync.main -b -l
 | `-i` | `--interval` | **设置循环间隔(秒)**。必须配合 `-l` 使用。默认 `86400` (即 24 小时)。例如 `-i 3600` 代表每小时查一次。 |
 | `-c` | `--config`   | **显式指定配置路径**。例如 `-c /etc/shinban/config.yml`。未指定时在当前/根目录寻找。            |
 
----
+### 使用 Docker
+
+项目已发布官方 Docker 镜像用于部署在服务端，只需以下几步即可运行：
+
+1. **准备配置文件**：在需要部署的服务器上新建一个空目录（例如 `shinban`），并在其中创建一个配置文件（例如 `config.yml`
+   ），参考上方模板修改后保存。
+2. **创建 docker-compose.yml**：在同一目录下创建 `docker-compose.yml`，根据项目模板按实际场景修改后保存。
+3. **启动容器**：
+
+   ```bash
+   docker-compose up -d
+   ```
 
 ## Screenshot
 
@@ -184,7 +159,7 @@ python3 -m src.shinban_sync.main -b -l
 本项目使用 `Apache License 2.0` 协议，仅供学习交流，请于下载后24小时内删除，使用应遵循当地法律法规，请勿用于违法用途。
 
 ```text
-Copyright 2026 wiseCrino
+Copyright 2026 wiseCirno
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
