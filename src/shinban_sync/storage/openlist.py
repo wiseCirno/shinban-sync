@@ -53,37 +53,41 @@ class OpenlistProvider(BaseProvider):
                 self.headers["Authorization"] = token
 
         except httpx.RequestError as e:
-            logger.error(f"Network request failed: {e}")
-            raise
+            logger.error(f"Openlist 请求失败: {e}")
+            exit(1)
+        except httpx.ConnectError as e:
+            logger.error(f"Openlist 连接失败: {e}")
+            exit(1)
         except Exception as e:
-            logger.error(f"Unknown error: {e}")
-            raise
+            logger.error(f"Openlist 未知错误: {e}")
+            exit(1)
 
     def _api_post(self, endpoint: str, json_data: dict, suppress_error: bool = False):
+        if not self.client:
+            raise RuntimeError(
+                "Openlist Client is not initialized. Please use 'async with OpenlistProvider(...) as provider:' ")
+
         url = f"{self.base_url}{endpoint}"
         try:
-            data = {}
-            if self.client:
-                resp = self.client.post(url, headers = self.headers, json = json_data)
-                resp.raise_for_status()
-                data = resp.json()
-            else:
-                with httpx.Client(timeout = 15.0) as temp_client:
-                    resp = temp_client.post(url, headers = self.headers, json = json_data)
-                    resp.raise_for_status()
-                    data = resp.json()
-
-            if data.get("code") != 200:
-                if not suppress_error:
-                    logger.error(f"OpenList API error ({endpoint}): {data.get('message')}")
-                return None
-
-            result = data.get("data")
-            return result if result is not None else True
+            resp = self.client.post(url, headers = self.headers, json = json_data)
+            resp.raise_for_status()
+            data = resp.json()
         except Exception as e:
             if not suppress_error:
-                logger.error(f"OpenList API request error {endpoint}: {e}")
-            return None
+                logger.error(f"OpenList 网络请求异常 {endpoint}: {e}")
+            raise IOError(f"网络异常: {e}")
+
+        if data.get("code") != 200:
+            msg = data.get("message", "").lower()
+            if "not found" in msg or "not exist" in msg or data.get("code") == 404:
+                return None
+
+            if not suppress_error:
+                logger.error(f"OpenList 状态码错误 ({endpoint}): {data.get('message')}")
+            raise IOError(f"API异常: {data.get('message')}")
+
+        result = data.get("data")
+        return result if result is not None else True
 
     def _makedirs(self, path: str):
         folders = path.replace('\\', '/').strip('/').split('/')
@@ -93,21 +97,26 @@ class OpenlistProvider(BaseProvider):
                 continue
             current_path += f"/{folder}"
 
-            res = self._api_post("/api/fs/get", {"path": current_path}, suppress_error = True)
-            if not res:
-                self._api_post("/api/fs/mkdir", {"path": current_path}, suppress_error = True)
+            try:
+                res = self._api_post("/api/fs/get", {"path": current_path}, suppress_error = True)
+                if not res:
+                    self._api_post("/api/fs/mkdir", {"path": current_path}, suppress_error = True)
+            except IOError:
+                pass
 
     def _rename(self, path: str, new_name: str) -> bool:
-        res = self._api_post("/api/fs/rename", {"path": path, "name": new_name})
-        if res is not None:
-            return True
-        return False
+        try:
+            res = self._api_post("/api/fs/rename", {"path": path, "name": new_name})
+            return res is not None
+        except IOError:
+            return False
 
     def _move(self, src_dir: str, dst_dir: str, file_name: str) -> bool:
-        res = self._api_post("/api/fs/move", {"src_dir": src_dir, "dst_dir": dst_dir, "names": [file_name]})
-        if res is not None:
-            return True
-        return False
+        try:
+            res = self._api_post("/api/fs/move", {"src_dir": src_dir, "dst_dir": dst_dir, "names": [file_name]})
+            return res is not None
+        except IOError:
+            return False
 
     def rename_and_move_bangumi(self, info: BangumiInfo, config: BangumiConfig, file_name: str) -> str:
         src_dir = self.storage.aria2_path.rstrip('/')
@@ -127,15 +136,20 @@ class OpenlistProvider(BaseProvider):
     def get_latest_episode(self, config: BangumiConfig) -> int:
         target_dir = self.get_target_dir(config)
 
-        res = self._api_post("/api/fs/list", {"path": target_dir, "page": 1, "per_page": 1000}, suppress_error = True)
-        if not res:
-            return 1
+        try:
+            res = self._api_post("/api/fs/list", {"path": target_dir, "page": 1, "per_page": 1000},
+                                 suppress_error = True)
+            if not res:
+                return 1
 
-        contents = res.get("content") or []
-        matches = [
-            int(re.search(r'S\d+E(\d+)', item.get("name", "")).group(1))
-            for item in contents if re.search(r'S\d+E(\d+)', item.get("name", ""))
-        ]
+            contents = res.get("content") or []
+            matches = [
+                int(re.search(r'S\d+E(\d+)', item.get("name", "")).group(1))
+                for item in contents if re.search(r'S\d+E(\d+)', item.get("name", ""))
+            ]
 
-        max_episode = max(matches) if matches else 0
-        return -1 if max_episode >= config.episode_count else max_episode + 1
+            max_episode = max(matches) if matches else 0
+            return -1 if max_episode >= config.episode_count else max_episode + 1
+        except IOError as e:
+            logger.warning(f"获取 {config.filename} 进度失败，暂时跳过。原因: {e}")
+            return -1
