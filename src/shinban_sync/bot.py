@@ -15,12 +15,14 @@ from src.shinban_sync.models.tmdb import TMDBTVSearchItem, TMDBSeason, TMDBSerie
 
 
 class Bot:
-    def __init__(self, config: ConfigManager):
+    def __init__(self, config: ConfigManager, wake_event: asyncio.Event = None):
         self.config = config
+        self.wake_event = wake_event
         self.tmdb_provider = TMDBProvider(config.get_tmdb_token())
 
         self.app = Application.builder().token(config.get_telegram_bot_token()).build()
         self.app.add_handler(CommandHandler("subscribe", self.subscribe_command))
+        self.app.add_handler(CommandHandler("refresh", self.refresh_command))
         self.app.add_handler(CallbackQueryHandler(self.button_callback))
         self.app.add_error_handler(self.error_handler)
 
@@ -97,9 +99,14 @@ class Bot:
         size = "w1280" if is_backdrop else "w780"
         return f"https://image.tmdb.org/t/p/{size}{path}"
 
-    async def subscribe_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def _is_valid_user(self, update: Update) -> bool:
         if not update.message.from_user.id == int(self.config.get_telegram_user_id()):
             await update.message.reply_text("You are not allowed to use this command.")
+            return False
+        return True
+
+    async def subscribe_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not await self._is_valid_user(update):
             return
 
         if not context.args:
@@ -107,7 +114,7 @@ class Bot:
             return
 
         query = " ".join(context.args)
-        loading_msg = await update.message.reply_text("请稍候...", parse_mode = "HTML")
+        loading_msg = await update.message.reply_text("⏳ 请稍候...", parse_mode = "HTML")
 
         async with self.tmdb_provider as tmdb:
             search_res = await tmdb.search_tv(query)
@@ -127,6 +134,13 @@ class Bot:
             parse_mode = "HTML",
             reply_markup = self._build_tv_keyboard(0, len(search_res.results))
         )
+
+    async def refresh_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not await self._is_valid_user(update):
+            return
+
+        self.wake_event.set()
+        await update.message.reply_text("✅ 手动刷新已设置。", parse_mode = "HTML")
 
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -190,7 +204,7 @@ class Bot:
             search_keywords: List[str] = list(dict.fromkeys(search_keywords))[:3]
             search_keywords = [s.replace('-', '') for s in search_keywords]  # 神秘bug,搜索内容包含'-'会502
 
-            bangumi_results = []
+            bangumi_results: List[BangumiInfo] = []
             async with AcgRipProvider() as acg:
                 tasks = [acg.search(kw) for kw in search_keywords]
                 res_list = await asyncio.gather(*tasks)
@@ -229,9 +243,36 @@ class Bot:
             context.user_data['acg_results'] = processed_bangumi
             context.user_data['available_groups'] = available_groups
 
+            group_latest_episodes = {}
+            for b in processed_bangumi:
+                for ep_str in b.episode:
+                    try:
+                        ep_num = float(ep_str)
+                        if b.group not in group_latest_episodes or ep_num > group_latest_episodes[b.group]:
+                            group_latest_episodes[b.group] = ep_num
+                    except ValueError:
+                        # 忽略无法转换为数字的集
+                        pass
+
+            progress_text = ""
+            for group in available_groups:
+                latest_ep = group_latest_episodes.get(group)
+                if latest_ep is not None:
+                    ep_display = f"{int(latest_ep)}" if latest_ep.is_integer() else f"{latest_ep}"
+                    progress_text += f"• <b>{group}</b> : 更新到第 <b>{ep_display}</b> 集\n"
+                else:
+                    progress_text += f"• <b>{group}</b> : 进度 <b>未知</b>\n"
+
+            caption = (
+                f"<b>已选择：{season.name}</b>\n\n"
+                f"<b>🚀 发布进度：</b>\n"
+                f"{progress_text}\n"
+                f"👇 请选择你要订阅的字幕组："
+            )
+
             await query.edit_message_media(
                 media = InputMediaPhoto(media = self._get_image_url(season.poster_path, is_backdrop = False),
-                                        caption = f"<b>已选择：{season.name}</b>\n\n👇 请选择字幕组：",
+                                        caption = caption,
                                         parse_mode = "HTML"),
                 reply_markup = self._build_subtitle_keyboard(available_groups, page = 0)
             )
