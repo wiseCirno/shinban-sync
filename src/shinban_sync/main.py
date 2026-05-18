@@ -62,9 +62,7 @@ async def run_once(config_path: str = None):
             tasks = []
 
             for anime in subscribed_anime:
-                latest_episode = provider.get_latest_episode(anime)
-                if latest_episode == -1:
-                    continue
+                existing_episodes = set(provider.get_existing_episodes(anime))
 
                 now = datetime.now(anime.season_air_date.tzinfo) if anime.season_air_date.tzinfo else datetime.now()
                 days_since_premiere = (now - anime.season_air_date).days
@@ -73,15 +71,21 @@ async def run_once(config_path: str = None):
                     continue
 
                 expected_latest = min(anime.episode_count, (days_since_premiere // 7) + 1)
-                if latest_episode > expected_latest:
-                    logger.info(f"✨ [进度最新] 《{anime.search_keyword}》已跟上最新进度")
+                missing_episodes = set(range(1, expected_latest + 1)) - existing_episodes
+
+                if not missing_episodes:
+                    if len(existing_episodes) >= anime.episode_count:
+                        logger.info(f"✨ [全部完结] 《{anime.search_keyword}》所有集数已同步完毕")
+                    else:
+                        logger.info(f"✨ [进度最新] 《{anime.search_keyword}》已跟上最新进度")
                     continue
 
-                missing_episodes = set(range(latest_episode, expected_latest + 1))
                 ep_str = ", ".join(str(ep) for ep in sorted(missing_episodes))
                 logger.info(f"🔍 [开始检索] 正在寻找《{anime.search_keyword}》第 {ep_str} 集")
 
-                ideal_date = anime.season_air_date + timedelta(days = 7 * (latest_episode - 1))
+                # 使用最早缺失的集数来计算 threshold_date
+                earliest_missing = min(missing_episodes)
+                ideal_date = anime.season_air_date + timedelta(days = 7 * (earliest_missing - 1))
                 threshold_date = ideal_date - timedelta(days = 7)
 
                 target_name = anime.search_keyword.strip().lower()

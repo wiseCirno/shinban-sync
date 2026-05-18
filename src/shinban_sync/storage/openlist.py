@@ -133,14 +133,14 @@ class OpenlistProvider(BaseProvider):
 
         return f"{target_dir}/{new_filename}"
 
-    def get_latest_episode(self, config: BangumiConfig) -> int:
+    def get_existing_episodes(self, config: BangumiConfig) -> list[int]:
         target_dir = self.get_target_dir(config)
 
         try:
             res = self._api_post("/api/fs/list", {"path": target_dir, "page": 1, "per_page": 1000},
                                  suppress_error = True)
             if not res:
-                return 1
+                return []
 
             contents = res.get("content") or []
             matches = [
@@ -148,8 +148,7 @@ class OpenlistProvider(BaseProvider):
                 for item in contents if re.search(r'S\d+E(\d+)', item.get("name", ""))
             ]
 
-            max_episode = max(matches) if matches else 0
-            return -1 if max_episode >= config.episode_count else max_episode + 1
+            return matches
         except IOError as e:
             logger.warning(f"获取 {config.filename} 进度失败，暂时跳过。原因: {e}")
-            return -1
+            return []

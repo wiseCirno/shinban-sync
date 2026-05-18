@@ -8,19 +8,18 @@ from src.shinban_sync.storage.base import BaseProvider
 
 
 class LocalProvider(BaseProvider):
-    def get_latest_episode(self, config: BangumiConfig) -> int:
+    def get_existing_episodes(self, config: BangumiConfig) -> list[int]:
         target_dir = self.get_target_dir(config)
 
         if not os.path.exists(target_dir):
-            return 1
+            return []
 
         try:
             episodes = os.listdir(target_dir)
             matches = [int(re.search(r'S\d+E(\d+)', f).group(1))
                        for f in episodes if re.search(r'S\d+E(\d+)', f)]
 
-            max_episode = max(matches, default = 0)
-            return -1 if max_episode >= config.episode_count else max_episode + 1
+            return matches
 
         except Exception as e:
             raise IOError(f"无法读取目录 {target_dir}: {e}")

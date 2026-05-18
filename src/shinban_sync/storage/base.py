@@ -21,7 +21,7 @@ class BaseProvider(ABC):
         pass
 
     @abstractmethod
-    def get_latest_episode(self, config: BangumiConfig) -> int:
+    def get_existing_episodes(self, config: BangumiConfig) -> list[int]:
         pass
 
     @staticmethod

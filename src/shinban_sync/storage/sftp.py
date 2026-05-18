@@ -63,13 +63,12 @@ class SftpProvider(BaseProvider):
         except IOError as e:
             raise IOError(f"移动文件 {file_name} 失败: {e}")
 
-    def get_latest_episode(self, config: BangumiConfig) -> int:
+    def get_existing_episodes(self, config: BangumiConfig) -> list[int]:
         try:
             episodes = self.sftp.listdir(self.get_target_dir(config))
             matches = [int(re.search(r'S\d+E(\d+)', f).group(1))
                        for f in episodes if re.search(r'S\d+E(\d+)', f)]
 
-            max_episode = max(matches) if matches else 0
-            return -1 if max_episode >= config.episode_count else max_episode + 1
+            return matches
         except IOError:
-            return 1
+            return []
