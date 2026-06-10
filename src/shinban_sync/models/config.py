@@ -16,8 +16,8 @@ class BangumiConfig:
     search_keyword: str
     filename: str
     subtitle: SubtitleGroup
-    first_air_date: datetime
     season_air_date: datetime
+    first_air_date: Optional[datetime] = None
     season: int = 1
     episode_count: int = 12
     language: str = 'chs'
@@ -43,6 +43,8 @@ class BangumiConfig:
 
         if self.season == 1 and not self.first_air_date:
             self.first_air_date = self.season_air_date
+        elif not self.first_air_date:
+            raise ValueError("first_air_date is required when season is not 1")
 
 
 @dataclass
