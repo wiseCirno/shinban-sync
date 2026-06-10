@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![Network](https://img.shields.io/badge/Magic%20Network-Required-blue)
-![Python](https://img.shields.io/badge/Python-3.10+-yellow.svg)
+![Python](https://img.shields.io/badge/Python-3.13+-yellow.svg)
 ![LastCommit](https://img.shields.io/github/last-commit/wiseCirno/shinban-sync/master)
 
 > 项目早期开发中，有任何功能和代码的问题欢迎提交 ISSUE
@@ -16,16 +16,18 @@
 
 ## Features
 
-- [x] **🤖 交互式订阅**：通过关键词搜索，可以查看系列海报、简介、季度信息，然后选择喜欢的字幕组添加到订阅配置。
+- [x] **🤖 Telegram 交互式订阅**：通过 `/subscribe` 关键词搜索，可以查看系列海报、简介、季度信息，然后选择喜欢的字幕组添加到订阅配置。
+- [x] **⚡ Telegram 手动刷新**：通过 `/refresh` 立即触发一次检索，适合 Bot 常驻但不想等下一轮定时任务的场景。
 - [x] **⏱️ 自动追赶进度**：根据番剧首播时间和当前日期自动计算“应有进度”。哪怕你半途才想起追番，也可以一次性把落下的所有集数补齐。
 - [x] **🗂️ 重命名与归档**：支持自定义的 `<var>` 变量命名模板。
 - [x] **☁️ 多存储提供者支持 (Storage Providers)**：
     - `Local`：支持本地全自动整理。
     - `SFTP`：支持远程 NAS、VPS 媒体库归档。
     - `OpenList`：支持通过 OpenList API 直接管理挂载的网盘。
+- [x] **📡 ACG.RIP 检索与下载**：支持从 ACG.RIP 字幕组 RSS 检索资源，并下载对应 torrent 交给 Aria2。
 - [x] **📦 Docker 容器支持**: 提供了 `Dockerfile` 及 `Docker Compose` 配置，方便服务器部署。
 - [ ] **更多下载器接入**：目前支持 `Aria2`，后续将逐步接入如 `qBittorrent` 支持。
-- [ ] **更多 Bot 命令**: 目前支持添加订阅，后续将逐步加入新番通知，删除订阅的支持。
+- [ ] **更多 Bot 管理命令**：目前支持添加订阅和手动刷新，后续将逐步加入订阅列表、删除订阅、新番通知等支持。
 - [ ] **更多资源站接入**：目前支持 `ACG.RIP`，后续计划接入 `蜜柑计划 (Mikan Project)` 等更多优质 RSS 源。
 - [ ] **文件覆盖选项**：针对“重发修正版 (v2)”资源的自动替换机制。
 - [ ] **合集资源整理**: 对非单集的季度合集进行整理 (新番下载貌似用不到这个，但是秉承着你可以不要，我不能没有，得加😂)
@@ -42,7 +44,6 @@ telegram_user_id: your_user_id      # 可以使用 @userinfobot 获取你的用�
 tmdb_token: your_tmdb_token         # 在 https://www.themoviedb.org/settings/api 获取 API 读访问令牌
 # 2. 下载器配置
 downloader:
-  provider: aria2
   aria2:
     base_url: http://127.0.0.1:6800/jsonrpc
     token: your_secret_token
@@ -52,10 +53,13 @@ storage:
   # "local" 适用于在服务器上部署或纯本地使用；另外两个适用于在不同终端上运行，通过远程访问服务器管理资源
   provider: local
   # 命名模板，标签内可以直接写 Python 语法（如果保持默认值则无需显式指定），支持传入的标签如下：
-  # <filename>, <subtitle>, <first_air_date>, <season_year_date>, <season>, <episode>, <language>, <ext>
+  # <filename>, <subtitle>, <first_air_date>, <season_air_date>, <season>, <episode>, <language>, <ext>
   folder_name_pattern: <filename> (<first_air_date.year>)/Season <season>
   video_name_pattern: <filename> S<season:02d>E<episode:02d>.<ext>
   # 如果 provider: local 只保留这部分就可以
+  # 如果你选择用 docker 部署，比较建议将下面两个路径修改如下，然后做路径映射的时候容器路径就填这两个
+  # aria2_path: /app/aria2
+  # target_path: /app/target
   local:
     aria2_path: /aria2/path
     target_path: /target/path
@@ -89,6 +93,44 @@ anime:
     language: chs                          # (可选) 简中 chs, 繁中 cht，默认 'chs'
 ```
 
+### 配置与环境变量
+
+程序实际读取的 `config.yml` 节点如下：
+
+| 配置项                           | 是否必填              | 说明                                                                                |
+|:------------------------------|:------------------|:----------------------------------------------------------------------------------|
+| `telegram_bot_token`          | 启用 Bot 时必填        | Telegram Bot Token。                                                               |
+| `telegram_user_id`            | 启用 Bot 时必填        | 允许使用 Bot 的 Telegram 用户 ID。                                                        |
+| `tmdb_token`                  | 启用 Bot 时必填        | TMDB API 读访问令牌，用于 Bot 搜索剧集、海报和季度信息。                                               |
+| `downloader.aria2.base_url`   | 必填                | Aria2 JSON-RPC 地址。                                                                |
+| `downloader.aria2.token`      | 必填                | Aria2 JSON-RPC token。                                                             |
+| `storage.provider`            | 必填                | 当前支持 `local`、`sftp`、`openlist`。                                                   |
+| `storage.folder_name_pattern` | 可选                | 文件夹命名模板，默认 `<filename> (<first_air_date.year>)/Season <season>`。                  |
+| `storage.video_name_pattern`  | 可选                | 视频文件命名模板，默认 `<filename> S<season:02d>E<episode:02d>.<ext>`。                       |
+| `storage.local.*`             | 使用 `local` 时必填    | `aria2_path`、`target_path`。                                                       |
+| `storage.sftp.*`              | 使用 `sftp` 时必填     | `host`、`port`、`user`，以及 `password` 或 `pub_key` 之一；还需要 `aria2_path`、`target_path`。 |
+| `storage.openlist.*`          | 使用 `openlist` 时必填 | `base_url`、`user`、`password`、`aria2_path`、`target_path`。                          |
+| `anime[]`                     | 可为空               | 订阅列表；启用 Bot 后也可以由 `/subscribe` 自动追加。                                              |
+| `anime[].search_keyword`      | 手动订阅时必填           | 用于在 ACG.RIP 标题中匹配资源。                                                              |
+| `anime[].filename`            | 手动订阅时必填           | 用于媒体库文件夹和文件名模板。                                                                   |
+| `anime[].subtitle`            | 手动订阅时必填           | 字幕组枚举名，必须是代码中已支持的 ACG.RIP 字幕组。                                                    |
+| `anime[].season_air_date`     | 手动订阅时必填           | 当前季首播日期，用于计算应同步到第几集。                                                              |
+| `anime[].first_air_date`      | 条件必填              | 第一季可省略，会自动使用 `season_air_date`；非第一季需要填写系列第一季首播日期。                                 |
+| `anime[].season`              | 可选                | 季号，默认 `1`。                                                                        |
+| `anime[].episode_count`       | 可选                | 总集数，默认 `12`。                                                                      |
+| `anime[].language`            | 可选                | 字幕语言，默认 `chs`；常用值为 `chs`、`cht`。                                                   |
+
+支持的环境变量如下：
+
+| 环境变量                           | 默认值                         | 说明                                         |
+|:-------------------------------|:----------------------------|:-------------------------------------------|
+| `BANGUMI_CONFIG_PATH`          | 未设置                         | 指定配置文件路径。若该路径存在，会优先于 `-c/--config`。        |
+| `ENABLE_TELEGRAM_BOT`          | `false`                     | 设为 `true`、`1` 或 `yes` 时等同于启动参数 `-b/--bot`。 |
+| `TZ`                           | Docker 镜像内为 `Asia/Shanghai` | 容器时区。裸机运行时由系统环境决定。                         |
+| `ACG_RIP_MIN_INTERVAL_SECONDS` | `2.0`                       | ACG.RIP 请求之间的最小间隔。                         |
+| `ACG_RIP_RETRY_AFTER_SECONDS`  | `30.0`                      | ACG.RIP 返回 429 且没有 `Retry-After` 时的默认等待秒数。 |
+| `ACG_RIP_MAX_ATTEMPTS`         | `3`                         | 单个 ACG.RIP 请求最多尝试次数。                       |
+
 ## Running
 
 ### 手动配置
@@ -108,12 +150,12 @@ python3 -m src.shinban_sync.main -b -l
 
 #### 所有支持的启动参数：
 
-| 参数缩写 | 参数全称         | 作用说明                                                                   |
-|:-----|:-------------|:-----------------------------------------------------------------------|
-| `-b` | `--bot`      | **启动 Telegram 机器人**。开启后可以通过 TG 搜番和添加配置。                                |
-| `-l` | `--loop`     | **开启常驻循环模式**。程序将挂在后台定期检查新番更新，如果不加此参数，程序只会执行一次检索然后退出。                   |
-| `-i` | `--interval` | **设置循环间隔(秒)**。必须配合 `-l` 使用。默认 `86400` (即 24 小时)。例如 `-i 3600` 代表每小时查一次。 |
-| `-c` | `--config`   | **显式指定配置路径**。例如 `-c /etc/shinban/config.yml`。未指定时在当前/根目录寻找。            |
+| 参数缩写 | 参数全称         | 作用说明                                                                                                                |
+|:-----|:-------------|:--------------------------------------------------------------------------------------------------------------------|
+| `-b` | `--bot`      | **启动 Telegram 机器人**。开启后可以通过 TG 搜番和添加配置。                                                                             |
+| `-l` | `--loop`     | **开启常驻循环模式**。程序将挂在后台定期检查新番更新，如果不加此参数，程序只会执行一次检索然后退出。                                                                |
+| `-i` | `--interval` | **设置循环间隔(秒)**。必须配合 `-l` 使用。默认 `86400` (即 24 小时)。例如 `-i 3600` 代表每小时查一次。                                              |
+| `-c` | `--config`   | **显式指定配置路径**。例如 `-c /etc/shinban/config.yml`。未指定时读取项目根目录的 `config.yml`。如果 `BANGUMI_CONFIG_PATH` 指向已存在文件，会优先使用该环境变量。 |
 
 ### 使用 Docker
 
@@ -127,7 +169,7 @@ python3 -m src.shinban_sync.main -b -l
    ```bash
    docker-compose up -d
    ```
-   
+
 ### 样例日志输出
 
 ```txt
@@ -167,7 +209,7 @@ shinban-sync  | 2026-04-24 00:10:11 | INFO | 下一次检索将在 86400 秒后�
 
 ### 媒体库重命名
 
-根据用户配置的模板，磁链下载的文件会被组织进模板路径中，被媒体服务器识别刮削。
+根据用户配置的模板，下载完成的文件会被组织进模板路径中，被媒体服务器识别刮削。
 
 <table>
   <tr>
