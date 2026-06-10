@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV TZ=Asia/Shanghai
 # 如果要用 TG 机器人就改成 true
 ENV ENABLE_TELEGRAM_BOT=false
+ENV ACG_RIP_MIN_INTERVAL_SECONDS=2.0
+ENV ACG_RIP_RETRY_AFTER_SECONDS=30.0
+ENV ACG_RIP_MAX_ATTEMPTS=3
 
 # 复制依赖配置并安装
 COPY requirements.txt .

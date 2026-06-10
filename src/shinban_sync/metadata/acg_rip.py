@@ -6,6 +6,7 @@ from xml.etree import ElementTree
 import httpx
 from fake_useragent import UserAgent
 
+from src.shinban_sync.core.acg_rip_rate_limit import request_acg_rip
 from src.shinban_sync.core.logger import logger
 from src.shinban_sync.models.bangumi import BangumiInfo, SubtitleGroup
 
@@ -34,7 +35,7 @@ class AcgRipProvider:
                 "AcgRipProvider Client is not initialized. Please use 'async with AcgRipProvider() as provider:'")
 
         try:
-            resp = await self.client.get(url)
+            resp = await request_acg_rip(self.client, "GET", url)
             resp.raise_for_status()
             return resp.text
 

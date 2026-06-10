@@ -40,6 +40,10 @@ async def organize(info: BangumiInfo, config: BangumiConfig, task: Aria2Download
     task_name = f"[{info.pub_date.strftime('%Y-%m-%d')}] {info.titles[0]} - {display_ep}"
 
     gid = await task.add_torrent(info.torrent, task_name, True)
+    if not gid:
+        logger.error(f"❌ [下载任务失败] 无法添加 Aria2 任务: {task_name}")
+        return
+
     file_name = await task.wait_for_completion(gid)
 
     if file_name:

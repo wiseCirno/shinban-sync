@@ -5,6 +5,7 @@ import httpx
 from fake_useragent import UserAgent
 from httpx import AsyncClient, HTTPStatusError
 
+from src.shinban_sync.core.acg_rip_rate_limit import is_acg_rip_url, request_acg_rip
 from src.shinban_sync.core.logger import logger
 from src.shinban_sync.models.config import Aria2Config
 
@@ -54,8 +55,23 @@ class Aria2Downloader:
         :param allow_override: 是否允许覆盖本地同名文件
         :return: Aria2 任务 Gid
         """
-        torrent_raw = await self._client.get(torrent_url)
-        torrent_raw.raise_for_status()
+        try:
+            if is_acg_rip_url(torrent_url):
+                torrent_raw = await request_acg_rip(self._client, "GET", torrent_url)
+            else:
+                torrent_raw = await self._client.get(torrent_url)
+
+            torrent_raw.raise_for_status()
+        except HTTPStatusError as e:
+            logger.error(f"种子下载失败 [{e.response.status_code}]: {torrent_url}")
+            return ""
+        except httpx.RequestError as e:
+            logger.error(f"种子下载请求失败: {e}, url: {torrent_url}")
+            return ""
+        except Exception as e:
+            logger.error(f"种子下载未知错误: {e}, url: {torrent_url}")
+            return ""
+
         torrent_b64 = base64.b64encode(torrent_raw.content).decode('utf-8')
 
         # 防止意外状况出现视频下载下来以后又触发了一次下载，这里先直接处理为覆盖原文件
