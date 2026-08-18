@@ -191,8 +191,8 @@ class AcgRipProvider:
 
         return self._extract_bangumi_items(xml_raw)
 
-    async def search(self, term: str) -> List[BangumiInfo]:
-        url = f"https://acg.rip/.xml?term={term}"
+    async def search(self, term: str, page: int = 1) -> List[BangumiInfo]:
+        url = f"https://acg.rip/page/{page}.xml?term={term}"
         xml_raw = await self._fetch_xml_raw(url)
 
         if not xml_raw:
