@@ -13,6 +13,7 @@ class SftpProvider(BaseProvider):
 
         self.storage: SftpStorageConfig = storage
         self.transport = paramiko.Transport((self.storage.host, self.storage.port))
+        self.transport.set_keepalive(30.0)  # 避免等待 aria2 过久时出现 broken pipe
 
         if self.storage.password:
             self.transport.connect(username = self.storage.user, password = self.storage.password)
