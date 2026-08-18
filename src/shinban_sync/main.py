@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import os
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Set, Tuple
 
 import httpx
 
@@ -54,6 +54,56 @@ async def organize(info: BangumiInfo, config: BangumiConfig, task: Aria2Download
             logger.error(f"❌ [文件操作失败] 发生 IO 错误: {e}")
 
 
+def _parse_episodes(episode) -> List[int]:
+    """将条目中的集数字段统一解析为整数列表。"""
+    raw_eps = episode if isinstance(episode, list) else [episode]
+    parsed = []
+    for ep in raw_eps:
+        try:
+            parsed.append(int(float(ep)))
+        except (TypeError, ValueError):
+            continue
+    return parsed
+
+
+def _match_items(
+    items: List[BangumiInfo],
+    anime: BangumiConfig,
+    target_name: str,
+    missing_episodes: Set[int],
+    require_language: bool,
+) -> List[Tuple[BangumiInfo, List[int]]]:
+    """
+    从检索结果中匹配缺失集数。
+    require_language=True 时要求字幕组 + 标题 + 语言；
+    require_language=False 时仅要求字幕组 + 标题。
+    匹配成功的集数会从 missing_episodes 中移除。
+    """
+    if not missing_episodes:
+        return []
+
+    results: List[Tuple[BangumiInfo, List[int]]] = []
+    for item in items:
+        if not missing_episodes:
+            break
+
+        if item.group != anime.subtitle.name:
+            continue
+        if not any(target_name in t.lower() for t in item.titles):
+            continue
+        if require_language and anime.language not in item.languages:
+            continue
+
+        matched_eps = [ep for ep in _parse_episodes(item.episode) if ep in missing_episodes]
+        if not matched_eps:
+            continue
+
+        results.append((item, matched_eps))
+        missing_episodes.difference_update(matched_eps)
+
+    return results
+
+
 async def run_once(config_path: str = None):
     config = ConfigManager(config_path)
 
@@ -87,57 +137,57 @@ async def run_once(config_path: str = None):
                 ep_str = ", ".join(str(ep) for ep in sorted(missing_episodes))
                 logger.info(f"🔍 [开始检索] 正在寻找《{anime.search_keyword}》第 {ep_str} 集")
 
-                # 使用最早缺失的集数来计算 threshold_date
-                earliest_missing = min(missing_episodes)
-                ideal_date = anime.season_air_date + timedelta(days = 7 * (earliest_missing - 1))
-                threshold_date = ideal_date - timedelta(days = 7)
-
                 target_name = anime.search_keyword.strip().lower()
+                # 解决包含'-'会502的问题
+                search_term = anime.search_keyword.replace('-', '')
                 page = 1
 
-                while True:
-                    async with AcgRipProvider() as acg_rip:
-                        items: List[BangumiInfo] = await acg_rip.get_feed(anime.subtitle, page)
+                async with AcgRipProvider() as acg_rip:
+                    while missing_episodes:
+                        # 用当前最早缺失集估算发布时间阈值：该集理想播出日再往前一周
+                        earliest_missing = min(missing_episodes)
+                        ideal_date = anime.season_air_date + timedelta(days = 7 * (earliest_missing - 1))
+                        threshold_date = ideal_date - timedelta(days = 7)
+
+                        items: List[BangumiInfo] = await acg_rip.search(search_term, page)
                         if not items:
                             break
 
-                        for item in items:
-                            name_match = any(target_name in t.lower() for t in item.titles)
-                            lang_match = anime.language in item.languages
+                        # 字幕组 + 标题 + 语言
+                        for item, matched_eps in _match_items(
+                            items, anime, target_name, missing_episodes, require_language = True
+                        ):
+                            tasks.append(organize(item, anime, task, provider))
+                            for ep in matched_eps:
+                                logger.info(
+                                    f"✅ [完美匹配] 发现《{anime.search_keyword}》第 {ep} 集 ({anime.language})"
+                                )
 
-                            if not (name_match and lang_match):
-                                continue
+                        # 字幕组 + 标题
+                        for item, matched_eps in _match_items(
+                            items, anime, target_name, missing_episodes, require_language = False
+                        ):
+                            tasks.append(organize(item, anime, task, provider))
+                            langs_str = "/".join(item.languages) if item.languages else "未指定"
+                            for ep in matched_eps:
+                                logger.info(
+                                    f"✅ [宽松匹配] 发现《{anime.search_keyword}》第 {ep} 集 (语言: {langs_str})"
+                                )
 
-                            item_eps = item.episode if isinstance(item.episode, list) else [item.episode]
-                            matched_eps = []
+                        if not missing_episodes:
+                            break
 
-                            for ep_str_raw in item_eps:
-                                try:
-                                    ep_int = int(float(ep_str_raw))
-                                    if ep_int in missing_episodes:
-                                        matched_eps.append(ep_int)
-                                except ValueError:
-                                    pass
+                        # 本页最旧条目已早于缺失集可能发布时间
+                        if items[-1].pub_date.timestamp() < threshold_date.timestamp():
+                            break
 
-                            if matched_eps:
-                                tasks.append(organize(item, anime, task, provider))
-                                for ep in matched_eps:
-                                    missing_episodes.remove(ep)
-                                    logger.info(f"✅ [成功匹配] 发现《{anime.search_keyword}》第 {ep} 集")
+                        page += 1
 
-                            if not missing_episodes:
-                                break
-
-                    if not missing_episodes:
-                        break
-
-                    if items[-1].pub_date.timestamp() < threshold_date.timestamp():
-                        remaining_str = ", ".join(str(ep) for ep in sorted(missing_episodes))
-                        logger.info(
-                            f"⚠️ [等待发布] 字幕组 [{anime.subtitle.name}] 尚未发布《{anime.search_keyword}》第 {remaining_str} 集")
-                        break
-
-                    page += 1
+                if missing_episodes:
+                    remaining_str = ", ".join(str(ep) for ep in sorted(missing_episodes))
+                    logger.info(
+                        f"⚠️ [等待发布] 字幕组 [{anime.subtitle.name}] 尚未发布《{anime.search_keyword}》第 {remaining_str} 集"
+                    )
 
             if tasks:
                 await asyncio.gather(*tasks)
