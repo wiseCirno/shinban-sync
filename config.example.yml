@@ -1,0 +1,40 @@
+telegram_bot_token: ""
+telegram_user_id: ""
+tmdb_token: ""
+downloader:
+  aria2:
+    base_url: http://127.0.0.1:6800/jsonrpc
+    token: ""
+storage:
+  provider: local
+  folder_name_pattern: "<filename> (<first_air_date.year>)/Season <season>"
+  video_name_pattern: "<filename> S<season:02d>E<episode:02d>.<ext>"
+  local:
+    aria2_path: /app/aria2
+    target_path: /app/target
+  sftp:
+    host: ""
+    port: 22
+    user: ""
+    password: ""
+    pub_key: ""
+    aria2_path: ""
+    target_path: ""
+  openlist:
+    base_url: ""
+    user: ""
+    password: ""
+    aria2_path: ""
+    target_path: ""
+web:
+  host: 127.0.0.1
+  port: 3325
+  token: ""
+schedule:
+  enabled: false
+  mode: daily
+  hour: 4
+  minute: 0
+  interval_hours: 12
+  weekday: 1
+anime: []

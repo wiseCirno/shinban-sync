@@ -1,0 +1,19 @@
+# Unraid Docker Compose Manager / Compose Manager 示例。
+# 目录：/mnt/user/appdata/shinban-sync/，其中放 config.yml、logs/ 和此文件。
+services:
+  shinban-sync:
+    image: ghcr.io/wisecirno/shinban-sync:latest
+    container_name: shinban-sync
+    restart: unless-stopped
+    ports:
+      - "3325:3325"
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - /mnt/user/appdata/shinban-sync/config.yml:/app/config.yml
+      - /mnt/user/appdata/shinban-sync/logs:/app/logs
+      # local 存储时按 Unraid 的共享名修改：
+      # - /mnt/user/downloads/aria2:/app/aria2
+      # - /mnt/user/media/anime:/app/target
+    command: [ "run", "--modules", "web", "--host", "0.0.0.0", "--port", "3325", "-c", "/app/config.yml" ]
+    # 访问：NAS_IP:3325。需要 bot/schedule 时改成 web,bot,schedule。

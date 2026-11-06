@@ -1,0 +1,22 @@
+# 群晖 DSM 示例：复制成 config.yml，放在与 compose.yaml 相同的项目目录。
+# 主机配置目录示例：/volume1/docker/shinban-sync；容器内统一使用 /app。
+# Aria2 若在另一容器/主机上，127.0.0.1 是本容器，必须换成 NAS 局域网 IP。
+tmdb_token: ""              # 填写你的 TMDB API Token
+downloader:
+  aria2:
+    base_url: "http://192.168.1.10:6800/jsonrpc"  # 替换为 Aria2 实际地址
+    token: ""              # Aria2 RPC 密钥（若设置过）
+storage:
+  provider: local
+  local:
+    aria2_path: /app/aria2  # 对应 compose 里的下载目录挂载
+    target_path: /app/target # 对应 compose 里的媒体库挂载
+web:
+  port: 3325
+  token: ""               # 对外开放时请设置随机长令牌
+schedule:
+  enabled: false          # 需要定时同步时先在 compose 开启 schedule 模块
+  mode: daily
+  hour: 4
+  minute: 0
+anime: [ ]
