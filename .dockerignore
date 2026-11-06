@@ -15,4 +15,3 @@ web/node_modules
 web/.nuxt
 web/.output
 LICENSE
-poetry.lock
