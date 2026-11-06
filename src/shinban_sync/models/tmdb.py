@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -20,15 +20,15 @@ class TMDBEpisode(BaseModel):
     production_code: str
     season_number: int
     show_id: int
-    runtime: Optional[int] = None
-    still_path: Optional[str] = None
+    runtime: int | None = None
+    still_path: str | None = None
 
 
 class TMDBCompany(BaseModel):
     id: int
     name: str
     origin_country: str
-    logo_path: Optional[str] = None
+    logo_path: str | None = None
 
 
 class TMDBCountry(BaseModel):
@@ -43,8 +43,8 @@ class TMDBSeason(BaseModel):
     episode_count: int
     season_number: int
     vote_average: float
-    air_date: Optional[str] = None
-    poster_path: Optional[str] = None
+    air_date: str | None = None
+    poster_path: str | None = None
 
 
 class TMDBSpokenLanguage(BaseModel):
@@ -72,26 +72,30 @@ class TMDBSeriesDetails(BaseModel):
     adult: bool
     number_of_episodes: int
     number_of_seasons: int
-    episode_run_time: List[int]
-    languages: List[str]
-    origin_country: List[str]
-    backdrop_path: Optional[str] = None
-    poster_path: Optional[str] = None
+    episode_run_time: list[int]
+    languages: list[str]
+    origin_country: list[str]
+    backdrop_path: str | None = None
+    poster_path: str | None = None
 
-    genres: List[TMDBGenre] = []
-    networks: List[TMDBCompany] = []
-    production_companies: List[TMDBCompany] = []
-    production_countries: List[TMDBCountry] = []
-    seasons: List[TMDBSeason] = []
-    spoken_languages: List[TMDBSpokenLanguage] = []
-    created_by: List[Any] = []
+    genres: list[TMDBGenre] = []
+    networks: list[TMDBCompany] = []
+    production_companies: list[TMDBCompany] = []
+    production_countries: list[TMDBCountry] = []
+    seasons: list[TMDBSeason] = []
+    spoken_languages: list[TMDBSpokenLanguage] = []
+    created_by: list[object] = []
 
-    last_episode_to_air: Optional[TMDBEpisode] = None
-    next_episode_to_air: Optional[TMDBEpisode] = None
+    last_episode_to_air: TMDBEpisode | None = None
+    next_episode_to_air: TMDBEpisode | None = None
 
     @classmethod
-    def from_json(cls, raw_data: str | dict):
-        return cls.model_validate(raw_data) if isinstance(raw_data, dict) else cls.model_validate_json(raw_data)
+    def from_json(cls, raw_data: str | dict[str, Any]):
+        return (
+            cls.model_validate(raw_data)
+            if isinstance(raw_data, dict)
+            else cls.model_validate_json(raw_data)
+        )
 
 
 class TMDBAlternativeTitleItem(BaseModel):
@@ -102,13 +106,17 @@ class TMDBAlternativeTitleItem(BaseModel):
 
 class TMDBAlternativeTitles(BaseModel):
     id: int
-    results: List[TMDBAlternativeTitleItem] = []
+    results: list[TMDBAlternativeTitleItem] = []
 
     @classmethod
-    def from_json(cls, raw_data: str | dict):
-        return cls.model_validate(raw_data) if isinstance(raw_data, dict) else cls.model_validate_json(raw_data)
+    def from_json(cls, raw_data: str | dict[str, Any]):
+        return (
+            cls.model_validate(raw_data)
+            if isinstance(raw_data, dict)
+            else cls.model_validate_json(raw_data)
+        )
 
-    def get_titles_by_country(self, country_codes: List[str]) -> List[str]:
+    def get_titles_by_country(self, country_codes: list[str]) -> list[str]:
         return [
             item.title
             for item in self.results
@@ -127,23 +135,27 @@ class TMDBTVSearchItem(BaseModel):
     vote_count: int
     adult: bool = False
 
-    genre_ids: List[int] = []
-    origin_country: List[str] = []
+    genre_ids: list[int] = []
+    origin_country: list[str] = []
 
-    backdrop_path: Optional[str] = None
-    poster_path: Optional[str] = None
-    first_air_date: Optional[str] = ""
+    backdrop_path: str | None = None
+    poster_path: str | None = None
+    first_air_date: str | None = ""
 
 
 class TMDBTVSearchResult(BaseModel):
     page: int
-    results: List[TMDBTVSearchItem] = []
+    results: list[TMDBTVSearchItem] = []
     total_pages: int
     total_results: int
 
     @classmethod
-    def from_json(cls, raw_data: str | dict):
-        return cls.model_validate(raw_data) if isinstance(raw_data, dict) else cls.model_validate_json(raw_data)
+    def from_json(cls, raw_data: str | dict[str, Any]):
+        return (
+            cls.model_validate(raw_data)
+            if isinstance(raw_data, dict)
+            else cls.model_validate_json(raw_data)
+        )
 
-    def get_best_match(self) -> Optional[TMDBTVSearchItem]:
+    def get_best_match(self) -> TMDBTVSearchItem | None:
         return self.results[0] if self.results else None

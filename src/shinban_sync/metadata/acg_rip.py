@@ -1,38 +1,40 @@
 import re
 from datetime import datetime
-from typing import List, Optional
+from types import TracebackType
 from xml.etree import ElementTree
 
 import httpx
 from fake_useragent import UserAgent
 
-from src.shinban_sync.core.acg_rip_rate_limit import request_acg_rip
-from src.shinban_sync.core.logger import logger
-from src.shinban_sync.models.bangumi import BangumiInfo, SubtitleGroup
+from shinban_sync.models.bangumi import BangumiInfo, SubtitleGroup
+from shinban_sync.utils.acg_rip_rate_limit import request_acg_rip
+from shinban_sync.utils.logger import logger
+from shinban_sync.utils.numbers import parse_float, parse_int
 
 
 class AcgRipProvider:
     def __init__(self):
-        self.client: Optional[httpx.AsyncClient] = None
+        self.client: httpx.AsyncClient | None = None
 
     async def __aenter__(self):
-        self.client = httpx.AsyncClient(
-            headers = {
-                "User-Agent": UserAgent().random
-            },
-            timeout = 15.0
-        )
+        self.client = httpx.AsyncClient(headers = {"User-Agent": UserAgent().random}, timeout = 15.0)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+    ) -> None:
         if self.client:
             await self.client.aclose()
             self.client = None
 
-    async def _fetch_xml_raw(self, url: str) -> Optional[str]:
+    async def _fetch_xml_raw(self, url: str) -> str | None:
         if not self.client:
             raise RuntimeError(
-                "AcgRipProvider Client is not initialized. Please use 'async with AcgRipProvider() as provider:'")
+                "AcgRipProvider Client is not initialized. Please use 'async with AcgRipProvider() as provider:'"
+            )
 
         try:
             resp = await request_acg_rip(self.client, "GET", url)
@@ -43,7 +45,7 @@ class AcgRipProvider:
             logger.error(f"AcgRip request timed out: {e}, url: {url}")
         except httpx.HTTPStatusError as e:
             logger.error(f"AcgRip [Errno {e.response.status_code}] Req: {url} -> {e.response.text}")
-        except Exception as e:
+        except httpx.HTTPError as e:
             logger.error(f"AcgRip request failed: {e}")
 
         return None
@@ -60,28 +62,34 @@ class AcgRipProvider:
         clean_title = raw
 
         # 找单集截断点，如 " - 01"
-        single_dash = list(re.finditer(r'\s+-\s+第?\d+', clean_title))
+        single_dash = list(re.finditer(r"\s+-\s+第?\d+", clean_title))
         if single_dash:
-            clean_title = clean_title[:single_dash[-1].start()]
+            clean_title = clean_title[: single_dash[-1].start()]
         else:
             # 找紧贴标题的括号集数，如 "[01]", "[01v2]", "[第01话]", "[01-12]"
             bracket_ep = list(
-                re.finditer(r'\[第?\d{1,3}(?:\.\d+)?(?:v\d+)?[话話集]?(?:-\d{1,3})?(?:\s*(?:END|Fin|完.*))?]',
-                            clean_title, re.IGNORECASE))
+                re.finditer(
+                    r"\[第?\d{1,3}(?:\.\d+)?(?:v\d+)?[话話集]?(?:-\d{1,3})?(?:\s*(?:END|Fin|完.*))?]",
+                    clean_title,
+                    re.IGNORECASE,
+                )
+            )
             if bracket_ep:
-                clean_title = clean_title[:bracket_ep[-1].start()]
+                clean_title = clean_title[: bracket_ep[-1].start()]
             else:
                 # 如果完全没有集数，找带有视频规格的标签作为截断点
-                tag_match = re.search(r'\s*\[(?=.*(?:1080p|720p|WebRip|BDRip|x264|HEVC))', clean_title, re.IGNORECASE)
+                tag_match = re.search(
+                    r"\s*\[(?=.*(?:1080p|720p|WebRip|BDRip|x264|HEVC))", clean_title, re.IGNORECASE
+                )
                 if tag_match:
-                    clean_title = clean_title[:tag_match.start()]
+                    clean_title = clean_title[: tag_match.start()]
 
         # 剥离开头的字幕组和宣传标语
         while True:
             new_title = clean_title
             # 匹配以 【】、★ ★、[] 包裹的开头
-            for pattern in [r'^【.*?】\s*', r'^★.*?★\s*', r'^\[.*?\]\s*']:
-                temp = re.sub(pattern, '', new_title)
+            for pattern in [r"^【.*?】\s*", r"^★.*?★\s*", r"^\[.*?\]\s*"]:
+                temp = re.sub(pattern, "", new_title)
                 if temp.strip():
                     new_title = temp
 
@@ -91,42 +99,46 @@ class AcgRipProvider:
 
         # 清理首尾可能包裹着标题的残留外壳括号
         clean_title = clean_title.strip()
-        if clean_title.startswith('[') and clean_title.endswith(']'):
+        if clean_title.startswith("[") and clean_title.endswith("]"):
             clean_title = clean_title[1:-1]
 
         # 分割多语言标题
-        return [t.strip() for t in clean_title.split('/') if t.strip()]
+        return [t.strip() for t in clean_title.split("/") if t.strip()]
 
     @staticmethod
     def _extract_episode(raw: str) -> list[str] | str | None:
         # 匹配合集模式: [01-12] 或[第01-12话]
-        batch_match = re.search(r'\[第?(\d{1,3})-(\d{1,3})[^]]*]', raw)
+        batch_match = re.search(r"\[第?(\d{1,3})-(\d{1,3})[^]]*]", raw)
         if batch_match:
-            start = int(batch_match.group(1))
-            end = int(batch_match.group(2))
+            start = parse_int(batch_match.group(1))
+            end = parse_int(batch_match.group(2))
             return [str(i) for i in range(start, end + 1)]
 
         # 匹配单集模式 A: " - 01", " 第08.5话 "
-        single_dash = list(re.finditer(r'\s+-\s+第?(\d+(?:\.\d+)?)(?:v\d+)?[话話集]?', raw))
+        single_dash = list(re.finditer(r"\s+-\s+第?(\d+(?:\.\d+)?)(?:v\d+)?[话話集]?", raw))
         if single_dash:
             ep_str = single_dash[-1].group(1)
-            num = float(ep_str)
-            return str(int(num)) if num.is_integer() else str(num)
+            num = parse_float(ep_str)
+            return str(parse_int(num)) if num.is_integer() else str(num)
 
         # 匹配单集模式 B: [01], [01v2], [01 END], [第01话]
         bracket_ep = list(
-            re.finditer(r'\[第?(\d{1,3}(?:\.\d+)?)(?:v\d+)?[话話集]?(?:\s*(?:END|Fin|完.*))?]', raw,
-                        re.IGNORECASE))
+            re.finditer(
+                r"\[第?(\d{1,3}(?:\.\d+)?)(?:v\d+)?[话話集]?(?:\s*(?:END|Fin|完.*))?]",
+                raw,
+                re.IGNORECASE,
+            )
+        )
         if bracket_ep:
             ep_str = bracket_ep[-1].group(1)
-            num = float(ep_str)
-            return str(int(num)) if num.is_integer() else str(num)
+            num = parse_float(ep_str)
+            return str(parse_int(num)) if num.is_integer() else str(num)
 
         return None
 
     @staticmethod
     def _extract_language(raw: str) -> list[str]:
-        brackets = re.findall(r'\[(.*?)]', raw)
+        brackets = re.findall(r"\[(.*?)]", raw)
 
         if len(brackets) > 1:
             meta_text = "".join(brackets[1:])
@@ -144,7 +156,7 @@ class AcgRipProvider:
         return langs
 
     def _extract_bangumi_items(self, raw: str) -> list[BangumiInfo]:
-        items: List[BangumiInfo] = []
+        items: list[BangumiInfo] = []
         try:
             root = ElementTree.fromstring(raw)
             for item in root.findall(".//item"):
@@ -174,7 +186,7 @@ class AcgRipProvider:
                         languages = languages,
                         link = link,
                         torrent = torrent,
-                        group = group.name if group else None
+                        group = group.name if group else None,
                     )
                 )
         except ElementTree.ParseError as e:
@@ -182,7 +194,7 @@ class AcgRipProvider:
 
         return items
 
-    async def get_feed(self, provider: SubtitleGroup, page: int) -> List[BangumiInfo]:
+    async def get_feed(self, provider: SubtitleGroup, page: int) -> list[BangumiInfo]:
         url = f"{provider.value}/page/{page}.xml"
         xml_raw = await self._fetch_xml_raw(url)
 
@@ -191,7 +203,7 @@ class AcgRipProvider:
 
         return self._extract_bangumi_items(xml_raw)
 
-    async def search(self, term: str, page: int = 1) -> List[BangumiInfo]:
+    async def search(self, term: str, page: int = 1) -> list[BangumiInfo]:
         url = f"https://acg.rip/page/{page}.xml?term={term}"
         xml_raw = await self._fetch_xml_raw(url)
 

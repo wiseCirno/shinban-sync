@@ -1,29 +1,27 @@
 services:
   shinban-sync:
     image: ghcr.io/wisecirno/shinban-sync:latest
-    # build: . # 如果你想在本地自行构建，可以取消注释这行，并注释掉上面的 image
+    # build: .
     container_name: shinban-sync
+    # 只跑一轮 sync 时不要 restart，改用 docker run --rm。
     restart: unless-stopped
+    ports:
+      - "3325:3325"
     volumes:
-      - /your/local/path/to/[配置文件名].yml:/app/config.yml
-      # ==========================================================
-      # 【如果使用 local 本地存储】
-      # 请确保将您的宿主机下载路径映射进容器，并与 config.yml 中的 aria2_path/target_path 保持一致
+      - ./config.yml:/app/config.yml
+      - ./logs:/app/logs
+      # local 存储时再把下载目录和媒体库映射进来，并与 config.yml 中的路径一致：
       # - /your/local/aria2/path:/app/aria2
       # - /your/local/target/path:/app/target
-      # ==========================================================
-      # 【如果使用 sftp 远程存储】
-      # 不需要映射下载/目标路径，程序会通过网络远程操作文件。
-      # 但如果你在 config.yml 中配置了 pub_key (密钥登录)，则需要将密钥映射进容器：
-      # - /path/to/your/ssh_key:/app/ssh_key:ro # 然后在 config.yml 中将 pub_key 写为 /app/ssh_key
-      # ==========================================================
-      # 【如果使用 openlist 网盘存储】
-      # 完全不需要额外的路径映射，程序会通过网盘 API 直接操作文件。
+      # sftp 私钥：
+      # - /path/to/your/ssh_key:/app/ssh_key:ro
     environment:
       - TZ=Asia/Shanghai
-      # 如果要用 TG 机器人就改成 true
-      - ENABLE_TELEGRAM_BOT=false
-      # ACG.RIP 请求限速，默认值通常无需修改
       - ACG_RIP_MIN_INTERVAL_SECONDS=2.0
       - ACG_RIP_RETRY_AFTER_SECONDS=30.0
       - ACG_RIP_MAX_ATTEMPTS=3
+    # 模块：sync（一次后退出）、web、bot、schedule。sync 不要和其他模块写在一起。
+    command: ["run", "--modules", "web", "--host", "0.0.0.0", "--port", "3325", "-c", "/app/config.yml"]
+    # command: ["run", "--modules", "bot", "-c", "/app/config.yml"]
+    # command: ["run", "--modules", "web,bot,schedule", "--host", "0.0.0.0", "--port", "3325", "-c", "/app/config.yml"]
+    # command: ["sync", "-c", "/app/config.yml"]

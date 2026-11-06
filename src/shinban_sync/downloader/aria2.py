@@ -1,16 +1,19 @@
 import asyncio
 import base64
 import hashlib
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Optional
+from types import TracebackType
+from typing import Any
 
 import httpx
 from fake_useragent import UserAgent
 from httpx import AsyncClient, HTTPStatusError
 
-from src.shinban_sync.core.acg_rip_rate_limit import is_acg_rip_url, request_acg_rip
-from src.shinban_sync.core.logger import logger
-from src.shinban_sync.models.config import Aria2Config
+from shinban_sync.models.config import Aria2Config
+from shinban_sync.utils.acg_rip_rate_limit import is_acg_rip_url, request_acg_rip
+from shinban_sync.utils.logger import logger
+from shinban_sync.utils.numbers import parse_int
 
 # 可复用的任务状态：直接挂到已有 gid，不再重复 addTorrent
 _REUSABLE_STATUSES = frozenset({"active", "waiting", "paused", "complete"})
@@ -18,15 +21,22 @@ _REUSABLE_STATUSES = frozenset({"active", "waiting", "paused", "complete"})
 
 class Aria2Downloader:
     def __init__(self, config: Aria2Config):
-        self._config = config
-        self._client = AsyncClient(headers = {"User-Agent": UserAgent().random}, timeout = 10.0)
+        self._config: Aria2Config = config
+        self._client: AsyncClient = AsyncClient(
+            headers = {"User-Agent": UserAgent().random}, timeout = 10.0
+        )
         self._hash_locks: dict[str, asyncio.Lock] = {}
-        self._hash_locks_guard = asyncio.Lock()
+        self._hash_locks_guard: asyncio.Lock = asyncio.Lock()
 
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_val: BaseException | None,
+            exc_tb: TracebackType | None,
+    ) -> None:
         await self._client.aclose()
 
     async def _get_hash_lock(self, info_hash: str) -> asyncio.Lock:
@@ -38,7 +48,7 @@ class Aria2Downloader:
             return lock
 
     @asynccontextmanager
-    async def _hash_mutex(self, info_hash: Optional[str]) -> AsyncIterator[None]:
+    async def _hash_mutex(self, info_hash: str | None) -> AsyncGenerator[None]:
         """对同一 info hash 的提交路径加锁；无法解析 hash 时不加锁。"""
         if not info_hash:
             yield
@@ -47,7 +57,9 @@ class Aria2Downloader:
         async with lock:
             yield
 
-    async def _rpc_call(self, method: str, params: list, task_id: str = "bot") -> Optional[dict]:
+    async def _rpc_call(
+            self, method: str, params: list[object], task_id: str = "bot"
+    ) -> dict[str, Any] | None:
         token_str = self._config.token
         if not token_str.startswith("token:"):
             token_str = f"token:{token_str}"
@@ -56,7 +68,7 @@ class Aria2Downloader:
             "jsonrpc": "2.0",
             "id": task_id,
             "method": method,
-            "params": [token_str] + params
+            "params": [token_str] + params,
         }
 
         try:
@@ -67,12 +79,12 @@ class Aria2Downloader:
             logger.error(f"Aria2 异常状态码: {e}")
         except httpx.RemoteProtocolError as e:
             logger.error(f"Aria2 远程协议错误: {e}")
-        except Exception as e:
+        except httpx.HTTPError as e:
             logger.error(f"Aria2 未知错误: {e}")
         return None
 
     @staticmethod
-    def _rpc_result(resp: Optional[dict]) -> Any:
+    def _rpc_result(resp: dict[str, Any] | None) -> Any:
         if not resp:
             return None
         if "error" in resp:
@@ -81,7 +93,7 @@ class Aria2Downloader:
         return resp.get("result")
 
     @staticmethod
-    def _build_add_options(allow_override: bool = False) -> dict:
+    def _build_add_options(allow_override: bool = False) -> dict[str, str]:
         """
         参考 https://aria2.github.io/manual/en/html/aria2c.html#advanced-options
 
@@ -114,10 +126,10 @@ class Aria2Downloader:
             return i + 1
 
         colon = data.index(b":", i)
-        length = int(data[i:colon])
+        length = parse_int(data[i:colon])
         return colon + 1 + length
 
-    def _torrent_info_hash(self, torrent_data: bytes) -> Optional[str]:
+    def _torrent_info_hash(self, torrent_data: bytes) -> str | None:
         """计算 .torrent 的 info hash（SHA-1 十六进制小写）。"""
         marker = b"4:info"
         idx = torrent_data.find(marker)
@@ -132,9 +144,9 @@ class Aria2Downloader:
 
         return hashlib.sha1(torrent_data[info_start:info_end]).hexdigest()
 
-    async def _list_downloads(self, keys: list[str]) -> list[dict]:
+    async def _list_downloads(self, keys: list[str]) -> list[dict[str, Any]]:
         """汇总 active / waiting / stopped 中的任务。"""
-        downloads: list[dict] = []
+        downloads: list[dict[str, Any]] = []
 
         active = self._rpc_result(await self._rpc_call("aria2.tellActive", [keys]))
         if active:
@@ -150,11 +162,20 @@ class Aria2Downloader:
 
         return downloads
 
-    async def _find_by_info_hash(self, info_hash: str) -> Optional[dict]:
+    async def _find_by_info_hash(self, info_hash: str) -> dict[str, Any] | None:
         """按 info hash 查找已有任务"""
         info_hash = info_hash.lower()
-        keys = ["gid", "status", "infoHash", "errorCode", "errorMessage", "bittorrent",
-                "completedLength", "totalLength", "seeder"]
+        keys = [
+            "gid",
+            "status",
+            "infoHash",
+            "errorCode",
+            "errorMessage",
+            "bittorrent",
+            "completedLength",
+            "totalLength",
+            "seeder",
+        ]
         for item in await self._list_downloads(keys):
             item_hash = (item.get("infoHash") or "").lower()
             if item_hash == info_hash:
@@ -177,19 +198,19 @@ class Aria2Downloader:
 
         if status in _REUSABLE_STATUSES:
             logger.info(
-                f"♻️ [任务复用] 《{task_name}》info hash 已存在 "
-                f"(gid={gid}, status={status})，复用已有任务"
+                f"♻️ [任务复用] 《{task_name}》info hash 已存在 (gid={gid}, status={status})，复用已有任务"
             )
             return gid
 
         logger.warning(
-            f"⚠️ [清理残留] 《{task_name}》存在失败/已移除的同 hash 任务 "
-            f"(gid={gid}, status={status})，清除后重新提交"
+            f"⚠️ [清理残留] 《{task_name}》存在失败/已移除的同 hash 任务 (gid={gid}, status={status})，清除后重新提交"
         )
         self._rpc_result(await self._rpc_call("aria2.removeDownloadResult", [gid]))
         return ""
 
-    async def add_torrent(self, torrent_url: str, task_name: str, allow_override: bool = False) -> str:
+    async def add_torrent(
+            self, torrent_url: str, task_name: str, allow_override: bool = False
+    ) -> str:
         """
         :param torrent_url: 种子链接
         :param task_name: 任务名称
@@ -208,9 +229,6 @@ class Aria2Downloader:
             return ""
         except httpx.RequestError as e:
             logger.error(f"种子下载请求失败: {e}, url: {torrent_url}")
-            return ""
-        except Exception as e:
-            logger.error(f"种子下载未知错误: {e}, url: {torrent_url}")
             return ""
 
         torrent_bytes = torrent_raw.content
@@ -235,15 +253,14 @@ class Aria2Downloader:
                 if existing and existing.get("status") in _REUSABLE_STATUSES:
                     gid = existing["gid"]
                     logger.info(
-                        f"♻️ [任务复用] 《{task_name}》提交失败但发现已有任务 "
-                        f"(gid={gid}, status={existing.get('status')})，复用"
+                        f"♻️ [任务复用] 《{task_name}》提交失败但发现已有任务 (gid={gid}, status={existing.get('status')})，复用"
                     )
                     return gid
 
             return ""
 
     @staticmethod
-    def _is_download_finished(status: dict) -> bool:
+    def _is_download_finished(status: dict[str, Any]) -> bool:
         """判断下载数据是否已完成（BT 做种阶段 status 仍为 active）。"""
         if status.get("status") == "complete":
             return True
@@ -261,9 +278,14 @@ class Aria2Downloader:
 
     async def wait_for_completion(self, gid: str) -> str | None:
         keys = [
-            "status", "dir", "bittorrent",
-            "completedLength", "totalLength", "seeder",
-            "errorCode", "errorMessage",
+            "status",
+            "dir",
+            "bittorrent",
+            "completedLength",
+            "totalLength",
+            "seeder",
+            "errorCode",
+            "errorMessage",
         ]
         while True:
             resp = await self._rpc_call("aria2.tellStatus", [gid, keys])
@@ -273,7 +295,11 @@ class Aria2Downloader:
                     return status.get("bittorrent", {}).get("info", {}).get("name", "")
 
                 if status.get("status") in ("error", "removed"):
-                    detail = status.get("errorMessage") or status.get("errorCode") or status.get("status")
+                    detail = (
+                            status.get("errorMessage")
+                            or status.get("errorCode")
+                            or status.get("status")
+                    )
                     logger.error(f"Aria2 任务返回失败: {detail}")
                     return None
 

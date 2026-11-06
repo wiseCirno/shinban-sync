@@ -1,12 +1,13 @@
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 
-from src.shinban_sync.core.logger import logger
+from shinban_sync.utils.logger import logger
 
 
 def _get_float_env(name: str, default: float) -> float:
@@ -35,9 +36,9 @@ def _get_int_env(name: str, default: int) -> int:
 
 class AsyncRateLimiter:
     def __init__(self, min_interval_seconds: float):
-        self._min_interval_seconds = max(0.0, min_interval_seconds)
-        self._lock = asyncio.Lock()
-        self._next_request_at = 0.0
+        self._min_interval_seconds: float = max(0.0, min_interval_seconds)
+        self._lock: asyncio.Lock = asyncio.Lock()
+        self._next_request_at: float = 0.0
 
     async def wait(self):
         loop = asyncio.get_running_loop()
@@ -89,9 +90,9 @@ def _retry_after_seconds(response: httpx.Response) -> float:
         return ACG_RIP_RETRY_AFTER_SECONDS
 
     if retry_at.tzinfo is None:
-        retry_at = retry_at.replace(tzinfo = timezone.utc)
+        retry_at = retry_at.replace(tzinfo = UTC)
 
-    return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
+    return max(0.0, (retry_at - datetime.now(UTC)).total_seconds())
 
 
 async def request_acg_rip(
@@ -100,7 +101,7 @@ async def request_acg_rip(
         url: str,
         *,
         max_attempts: int = ACG_RIP_MAX_ATTEMPTS,
-        **kwargs
+        **kwargs: Any,
 ) -> httpx.Response:
     attempts = max(1, max_attempts)
 
@@ -114,7 +115,8 @@ async def request_acg_rip(
 
             wait_seconds = _retry_after_seconds(response)
             logger.warning(
-                f"AcgRip 返回 429，等待 {wait_seconds:.1f} 秒后重试 ({attempt}/{attempts}): {url}")
+                f"AcgRip 返回 429，等待 {wait_seconds:.1f} 秒后重试 ({attempt}/{attempts}): {url}"
+            )
             await response.aclose()
             await _ACG_RIP_RATE_LIMITER.defer(wait_seconds)
 
