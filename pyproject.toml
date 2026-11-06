@@ -1,0 +1,48 @@
+[project]
+name = "shinban-sync"
+version = "0.2.0"
+description = "无感知追番、媒体库整理与订阅管理"
+readme = "README.md"
+requires-python = ">=3.13,<4.0"
+license = "Apache-2.0"
+authors = [{ name = "wiseCirno" }]
+dependencies = [
+    "fake-useragent>=2.2.0",
+    "fastapi>=0.115.0",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "paramiko>=4.0.0",
+    "pydantic>=2.13.3",
+    "python-telegram-bot>=22.7",
+    "pyyaml>=6.0.3",
+    "uvicorn>=0.32.0",
+]
+
+[project.scripts]
+shinban-sync = "shinban_sync.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "shinban_sync", from = "src" }]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["src"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+target-version = "py313"
